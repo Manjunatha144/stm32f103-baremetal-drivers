@@ -187,6 +187,6 @@ int main(void) {
         pkt.checksum = checksum;
 
         usart1_dma_send(raw_pkt, sizeof(QuaternionPacket_t));
-        systick_delay_ms(18);
+        systick_delay_ms(19);
     }
 }

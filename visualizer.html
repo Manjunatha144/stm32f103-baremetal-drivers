@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MPU-6050 Bidirectional Telemetry & Control</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { overflow: hidden; background: #0b0d13; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; color: #e5e7eb; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+        #hud {
+            position: absolute; top: 20px; left: 20px; width: 340px;
+            background: rgba(17, 24, 39, 0.92); backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px;
+            padding: 16px; box-shadow: 0 12px 32px rgba(0,0,0,0.7); z-index: 10;
+        }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+        h2 { font-size: 14px; font-weight: 700; color: #fff; }
+        .badge { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 999px; background: #371b1b; color: #f87171; border: 1px solid #7f1d1d; }
+        .badge.online { background: #062e1c; color: #34d399; border-color: #065f46; }
+        .btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+        .btn-group-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 6px; }
+        button { width: 100%; padding: 8px; border: none; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+        .btn-conn { background: #2563eb; color: #fff; }
+        .btn-disc { background: #dc2626; color: #fff; }
+        .btn-cmd { background: #374151; color: #f3f4f6; border: 1px solid #4b5563; }
+        .btn-cmd:hover { background: #4b5563; }
+        .btn-cmd.active { background: #1d4ed8; border-color: #3b82f6; }
+        .card { background: rgba(11, 15, 25, 0.8); border: 1px solid rgba(255,255,255,0.06); border-radius: 6px; padding: 10px; margin-bottom: 8px; }
+        .lbl { font-size: 10px; color: #9ca3af; text-transform: uppercase; font-weight: 700; margin-bottom: 3px; }
+        .val { font-family: monospace; color: #60a5fa; font-size: 13px; font-weight: 700; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+    <div id="hud">
+        <div class="header">
+            <h2>MPU-6050 (GY-521)</h2>
+            <span id="badge" class="badge">OFFLINE</span>
+        </div>
+        <div class="btn-group">
+            <button id="btnConn" class="btn-conn">Connect</button>
+            <button id="btnTare" class="btn-cmd">UI Tare (Zero)</button>
+        </div>
+        <div class="card">
+            <div class="lbl">STM32 Hardware Control (USART1 RX DMA)</div>
+            <button id="btnCal" class="btn-cmd" style="margin-top:4px; background:#065f46; border-color:#059669;">MCU Gyro Recalibrate ('C')</button>
+            <div class="lbl" style="margin-top:8px;">Madgwick Filter Gain (&beta;)</div>
+            <div class="btn-group-3">
+                <button id="b1" class="btn-cmd" onclick="setBeta('1', this)">Smooth (0.03)</button>
+                <button id="b2" class="btn-cmd active" onclick="setBeta('2', this)">Normal (0.08)</button>
+                <button id="b3" class="btn-cmd" onclick="setBeta('3', this)">Fast (0.25)</button>
+            </div>
+        </div>
+        <div class="card grid">
+            <div><div class="lbl">Pitch (X)</div><div id="vP" class="val">0.0°</div></div>
+            <div><div class="lbl">Roll (Y)</div><div id="vR" class="val">0.0°</div></div>
+            <div><div class="lbl">Yaw (Z)</div><div id="vY" class="val">0.0°</div></div>
+        </div>
+        <div class="card">
+            <div class="lbl">Quaternion (w, x, y, z)</div>
+            <div id="vQ" class="val" style="font-size: 11px;">1.000, 0.000, 0.000, 0.000</div>
+        </div>
+        <div class="card"><div class="lbl">Stream Rate</div><div id="vRate" class="val">0 pkts/s</div></div>
+    </div>
+    <div id="canvas-container"></div>
+
+    <script>
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x0e1118);
+        const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 100);
+        camera.position.set(0, 4.0, 5.5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+        const sun = new THREE.DirectionalLight(0xffffff, 0.9);
+        sun.position.set(5, 10, 7);
+        scene.add(sun);
+
+        const grid = new THREE.GridHelper(10, 20, 0x374151, 0x1f2937);
+        grid.position.y = -1.2;
+        scene.add(grid);
+
+        function createMpuTexture() {
+            const c = document.createElement('canvas');
+            c.width = 1024; c.height = 1400;
+            const ctx = c.getContext('2d');
+            ctx.fillStyle = "#104e8b"; ctx.fillRect(0, 0, 1024, 1400);
+            ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 5;
+            const pins = ["VCC", "GND", "SCL", "SDA", "XDA", "XCL", "AD0", "INT"];
+            ctx.font = "bold 44px sans-serif";
+            for (let i = 0; i < 8; i++) ctx.fillText(pins[i], 180, 156 + i * 160);
+            ctx.save(); ctx.translate(920, 700); ctx.rotate(-Math.PI / 2);
+            ctx.font = "bold 46px sans-serif"; ctx.textAlign = "center";
+            ctx.fillText("MPU-6050  ITG/MPU", 0, 0); ctx.restore();
+            ctx.beginPath();
+            ctx.moveTo(560, 1260); ctx.lineTo(720, 1260); ctx.lineTo(700, 1245); ctx.moveTo(720, 1260); ctx.lineTo(700, 1275);
+            ctx.moveTo(720, 1260); ctx.lineTo(720, 1100); ctx.lineTo(705, 1120); ctx.moveTo(720, 1100); ctx.lineTo(735, 1120);
+            ctx.stroke();
+            ctx.font = "bold 40px sans-serif"; ctx.fillText("X", 740, 1275); ctx.fillText("Y", 725, 1080);
+            return new THREE.CanvasTexture(c);
+        }
+
+        const mpuGroup = new THREE.Group();
+        mpuGroup.add(new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.08, 3.0), new THREE.MeshStandardMaterial({ map: createMpuTexture(), roughness: 0.3 })));
+        const chip = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.06, 0.75), new THREE.MeshStandardMaterial({ color: 0x16181f, roughness: 0.6 }));
+        chip.position.set(0.05, 0.05, 0.1); mpuGroup.add(chip);
+        const cap = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.14, 0.5), new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.4 }));
+        cap.position.set(0.65, 0.08, 0.1); mpuGroup.add(cap);
+        const goldMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.9 });
+        for (let i = 0; i < 8; i++) {
+            const pad = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.09, 16), goldMat);
+            pad.position.set(-0.85, 0, -1.15 + i * 0.33); mpuGroup.add(pad);
+        }
+        mpuGroup.add(new THREE.AxesHelper(1.8));
+        scene.add(mpuGroup);
+
+        const PACKET_SIZE = 11;
+        let port = null, reader = null, isConnected = false;
+        let serialBuffer = [], packetCount = 0;
+        let tareQuat = new THREE.Quaternion();
+        let lastRawQuat = new THREE.Quaternion();
+
+        const btnConn = document.getElementById('btnConn');
+        const btnTare = document.getElementById('btnTare');
+        const btnCal  = document.getElementById('btnCal');
+        const badge   = document.getElementById('badge');
+
+        setInterval(() => { document.getElementById('vRate').innerText = `${packetCount} pkts/s`; packetCount = 0; }, 1000);
+
+        async function sendCommand(charStr) {
+            if (!port || !port.writable) return;
+            const writer = port.writable.getWriter();
+            await writer.write(new Uint8Array([charStr.charCodeAt(0)]));
+            writer.releaseLock();
+        }
+
+        window.setBeta = function(cmdChar, btnEl) {
+            sendCommand(cmdChar);
+            document.querySelectorAll('.btn-group-3 .btn-cmd').forEach(b => b.classList.remove('active'));
+            btnEl.classList.add('active');
+        };
+
+        btnCal.addEventListener('click', () => {
+            tareQuat.identity();
+            sendCommand('C');
+        });
+
+        btnTare.addEventListener('click', () => {
+            tareQuat.copy(lastRawQuat);
+        });
+
+        function parseStream() {
+            while (serialBuffer.length >= PACKET_SIZE) {
+                if (serialBuffer[0] !== 0xAA || serialBuffer[1] !== 0x55) { serialBuffer.shift(); continue; }
+                let chk = 0;
+                for (let i = 0; i < 10; i++) chk ^= serialBuffer[i];
+                if (chk !== serialBuffer[10]) { serialBuffer.shift(); continue; }
+
+                const view = new DataView(new Uint8Array(serialBuffer.slice(0, PACKET_SIZE)).buffer);
+                const q0 = view.getInt16(2, true) / 10000.0;
+                const q1 = view.getInt16(4, true) / 10000.0;
+                const q2 = view.getInt16(6, true) / 10000.0;
+                const q3 = view.getInt16(8, true) / 10000.0;
+
+                lastRawQuat.set(q1, q3, -q2, q0);
+                const currentQuat = tareQuat.clone().invert().multiply(lastRawQuat);
+                mpuGroup.quaternion.copy(currentQuat);
+
+                const euler = new THREE.Euler().setFromQuaternion(currentQuat, 'YXZ');
+                document.getElementById('vP').innerText = `${(euler.x * 180 / Math.PI).toFixed(1)}°`;
+                document.getElementById('vR').innerText = `${(-euler.z * 180 / Math.PI).toFixed(1)}°`;
+                document.getElementById('vY').innerText = `${(euler.y * 180 / Math.PI).toFixed(1)}°`;
+                document.getElementById('vQ').innerText = `${q0.toFixed(3)}, ${q1.toFixed(3)}, ${q2.toFixed(3)}, ${q3.toFixed(3)}`;
+                packetCount++;
+                serialBuffer.splice(0, PACKET_SIZE);
+            }
+        }
+
+        btnConn.addEventListener('click', async () => {
+            if (isConnected) {
+                isConnected = false;
+                if (reader) await reader.cancel();
+                if (port) await port.close();
+                badge.className = 'badge'; badge.innerText = 'OFFLINE';
+                btnConn.className = 'btn-conn'; btnConn.innerText = 'Connect';
+                return;
+            }
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
+                isConnected = true;
+                badge.className = 'badge online'; badge.innerText = 'ONLINE';
+                btnConn.className = 'btn-disc'; btnConn.innerText = 'Disconnect';
+                reader = port.readable.getReader();
+                while (isConnected) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    for (let i = 0; i < value.length; i++) serialBuffer.push(value[i]);
+                    parseStream();
+                }
+            } catch (err) { console.error(err); }
+        });
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); }
+        animate();
+    </script>
+</body>
+</html>
