@@ -1,0 +1,4 @@
+../Src/main.c:43:6:rcc_clock_init_72mhz	4	static
+../Src/main.c:61:6:i2c1_bus_recovery	24	static
+../Src/main.c:76:13:calibrate_gyro	56	static
+../Src/main.c:97:5:main	112	static

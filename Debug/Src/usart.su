@@ -1,0 +1,4 @@
+../Src/usart.c:42:6:usart1_init	4	static
+../Src/usart.c:60:6:usart1_dma_init	4	static
+../Src/usart.c:82:6:usart1_dma_send	16	static
+../Src/usart.c:97:9:usart1_dma_read_cmd	16	static

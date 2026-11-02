@@ -1,37 +1,26 @@
 #include "systick.h"
 
-/**
- * @brief  Initializes the SysTick timer.
- */
-void systick_init(void) {
-    /* Disable SysTick during configuration */
-    SYSTICK->CTRL = 0;
+volatile uint8_t g_imu_ready = 0;
+static volatile uint32_t g_ms_counter = 0;
 
-    /* Clear current value register */
-    SYSTICK->VAL = 0;
+void SysTick_Handler(void) {
+    g_ms_counter++;
 }
 
-/**
- * @brief  Blocking millisecond delay using the Cortex-M3 SysTick timer.
- *         Default HSI clock = 8 MHz (8,000 cycles per millisecond).
- */
+void systick_init(void) {
+    /* 72,000 cycles = 1 ms tick @ 72 MHz */
+    SYSTICK->LOAD = 72000 - 1;
+    SYSTICK->VAL  = 0;
+    SYSTICK->CTRL = SYSTICK_CTRL_ENABLE |
+                    SYSTICK_CTRL_TICKINT |
+                    SYSTICK_CTRL_CLKSOURCE;
+}
+
+uint32_t systick_get_tick(void) {
+    return g_ms_counter;
+}
+
 void systick_delay_ms(uint32_t ms) {
-    for (uint32_t i = 0; i < ms; i++) {
-        /* Set reload value for 1 ms (8000 ticks - 1) */
-        SYSTICK->LOAD = (8000 - 1);
-
-        /* Clear current value register */
-        SYSTICK->VAL = 0;
-
-        /* Enable counter and select processor clock (AHB) */
-        SYSTICK->CTRL = SYSTICK_CTRL_ENABLE | SYSTICK_CTRL_CLKSOURCE;
-
-        /* Wait until COUNTFLAG is set */
-        while (!(SYSTICK->CTRL & SYSTICK_CTRL_COUNTFLAG)) {
-            /* Spin wait */
-        }
-    }
-
-    /* Disable SysTick */
-    SYSTICK->CTRL = 0;
+    uint32_t start = g_ms_counter;
+    while ((g_ms_counter - start) < ms);
 }

@@ -1,0 +1,7 @@
+../Src/i2c.c:36:6:i2c1_init	4	static
+../Src/i2c.c:64:6:i2c1_dma_init	4	static
+../Src/i2c.c:85:6:DMA1_Channel7_IRQHandler	4	static
+../Src/i2c.c:101:6:i2c1_write_register	16	static
+../Src/i2c.c:124:9:i2c1_read_register	24	static
+../Src/i2c.c:165:6:i2c1_read_multibyte	24	static
+../Src/i2c.c:203:6:i2c1_dma_start_read	16	static

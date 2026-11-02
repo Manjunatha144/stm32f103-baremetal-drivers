@@ -1,0 +1,6 @@
+../Src/madgwick.c:9:14:inv_sqrt	1
+../Src/madgwick.c:13:6:madgwick_init	1
+../Src/madgwick.c:22:6:madgwick_set_beta	1
+../Src/madgwick.c:26:6:madgwick_reset	1
+../Src/madgwick.c:33:6:madgwick_update_6dof	4
+../Src/madgwick.c:102:6:madgwick_get_quaternion	1

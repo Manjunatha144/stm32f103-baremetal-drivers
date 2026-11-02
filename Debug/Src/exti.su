@@ -1,0 +1,2 @@
+../Src/exti.c:17:6:exti_pb5_init	4	static
+../Src/exti.c:41:6:EXTI9_5_IRQHandler	4	static
