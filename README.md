@@ -251,6 +251,12 @@ Disconnect the browser visualizer and run in terminal:
 `python -m pip install pyserial`
 `python hil_validator.py`
 
+## 3D WebGL Telemetry Dashboard Output
+<img width="1496" height="943" alt="visualizer_output" src="https://github.com/user-attachments/assets/ba19fb67-28be-4156-a0b0-d355fa460151" />
+
+## Automated HIL Validation Output
+<img width="733" height="328" alt="HIL Validation Output" src="https://github.com/user-attachments/assets/ed11a994-b4fb-40dc-b19c-c2ad0a146ac9" />
+
 ## Author
 
 ### Manjunatha H
