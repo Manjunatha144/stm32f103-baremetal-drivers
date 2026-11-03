@@ -200,6 +200,9 @@ Calibrated loop delay to systick_delay_ms(19), achieving an exact 20.00 ms avera
 - '2' : Set Madgwick filter gain beta = 0.08 (Normal / Balanced)
 - '3' : Set Madgwick filter gain beta = 0.25 (Fast / High Dynamic Response)
 
+  
+  ## HIL Validation Benchmark Output
+
 ------------------------------------------------------------
     STM32F103 HIL Validation Suite | Listening on COM6 @ 115200 baud
     ------------------------------------------------------------
