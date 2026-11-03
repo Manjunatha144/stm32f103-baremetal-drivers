@@ -252,8 +252,11 @@ Open project in STM32CubeIDE, build (`Ctrl + B`), and flash via ST-Link V2 (`Ctr
 Open `visualizer.html` in Google Chrome or Microsoft Edge, click **Connect**, and select your CP2102 COM port (`115200` baud).
 
 ### 4. Run Automated HIL Validation
+
 Disconnect the browser visualizer and run in terminal:
+
 `python -m pip install pyserial`
+
 `python hil_validator.py`
 
 ## 3D WebGL Telemetry Dashboard Output
