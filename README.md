@@ -111,3 +111,151 @@ Euler angles suffer from gimbal lock at ±90 degrees pitch, while an Extended Ka
 ### Why 11-Byte Binary Protocol Instead of ASCII/JSON?
 
 Streaming formatted ASCII floats requires 45+ bytes per frame and slow sprintf calls. Scaling quaternions to int16_t (x10000) inside a packed 11-byte binary frame cuts bandwidth by 75% and guarantees deterministic framing at 115200 baud.
+## Debugging Challenges Solved
+
+### 1. I2C SDA Line Lockup on MCU Reset
+
+Issue:
+Resetting the STM32 mid-transaction left the MPU-6050 holding the open-drain SDA line low, causing the STM32 I2C1 peripheral to stay permanently stuck in the BUSY state.
+
+Fix:
+Implemented an autonomous startup recovery sequence that configures PB6 (SCL) as a GPIO output and toggles 9 clock pulses followed by a manual STOP condition before enabling the I2C1 peripheral.
+
+---
+
+### 2. Linker Undefined Reference (usart1_dma_read_cmd)
+
+Issue:
+Build failed during linking because the circular RX DMA ring buffer reader and Channel 5 register macros were declared in usart.h but missing from the translation unit in usart.c.
+
+Fix:
+Implemented DMA1_CH5 register definitions, the 16-byte static s_rx_ring buffer, and the usart1_dma_read_cmd() index tracker comparing RX_RING_SIZE - DMA1_CNDTR5.
+
+---
+
+### 3. Serial Port Access Denied (PermissionError on COM6)
+
+Issue:
+Python HIL validation script failed to open COM6 while the WebGL visualizer was active in Chrome.
+
+Fix:
+Released the Web Serial API hardware handle in the browser prior to executing automated Python HIL verification runs.
+
+---
+
+### 4. Loop Timing Drift (52.64 Hz vs 50.00 Hz Target)
+
+Issue:
+Initial systick_delay_ms(18) combined with ~1.0 ms I2C burst-read and Madgwick execution resulted in a 19.00 ms period (52.64 Hz), triggering a timing warning in the HIL validator.
+
+Fix:
+Calibrated loop delay to systick_delay_ms(19), achieving an exact 20.00 ms average frame period (50.00 Hz) with a 100.00% HIL pass rate.
+
+## Tools & Technologies
+
+### Embedded Platforms
+- STM32F103C8T6 (ARM Cortex-M3 @ 72 MHz)
+- InvenSense MPU-6050 6-DOF IMU
+- Silicon Labs CP2102 USB-to-UART Bridge
+
+### Architecture
+- Bare-Metal Register-Level C (CMSIS / Reference Manual RM0008)
+- Direct Memory Access (DMA1 Channel 4 & Channel 5)
+
+### Communication Protocols
+- I2C (400 kHz Fast-Mode)
+- UART / USART (115200 8N1)
+- Custom 11-Byte Binary Telemetry Framing with XOR Checksum
+
+### Development & Validation Tools
+- STM32CubeIDE & GNU Arm Embedded Toolchain (arm-none-eabi-gcc)
+- Python 3 (pyserial, struct) for HIL Automated Testing
+- Three.js (WebGL) & HTML5 Web Serial API
+- Git & GitHub
+
+## Hardware Pinout
+
+| STM32F103 Pin | Peripheral | Connected Device | Mode / Function |
+|---|---|---|---|
+| PB6 | I2C1_SCL | MPU-6050 SCL | Alternate Function Open-Drain (400 kHz) |
+| PB7 | I2C1_SDA | MPU-6050 SDA | Alternate Function Open-Drain (400 kHz) |
+| PA9 | USART1_TX | CP2102 RXD | Alternate Function Push-Pull (DMA1 Ch4) |
+| PA10 | USART1_RX | CP2102 TXD | Input Pull-Up (DMA1 Ch5 Circular Ring) |
+| PC13 | GPIOC_ODR | Onboard LED | Active-Low Status & Calibration Indicator |
+
+## Binary Telemetry Packet Structure (11 Bytes)
+
+| Byte Index | Field | Data Type | Description |
+|---|---|---|---|
+| [0:1] | Header | uint8_t[2] | Frame sync preamble: 0xAA, 0x55 |
+| [2:3] | q0 (w) | int16_t (LE) | Scaled quaternion component (w * 10000) |
+| [4:5] | q1 (x) | int16_t (LE) | Scaled quaternion component (x * 10000) |
+| [6:7] | q2 (y) | int16_t (LE) | Scaled quaternion component (y * 10000) |
+| [8:9] | q3 (z) | int16_t (LE) | Scaled quaternion component (z * 10000) |
+| [10] | CRC | uint8_t | Longitudinal XOR parity over bytes 0 to 9 |
+
+### Host Control Commands (USART1 RX DMA)
+- 'C' : Execute 500-sample live gyroscope zero-bias recalibration and tare attitude
+- '1' : Set Madgwick filter gain beta = 0.03 (Smooth / High Stability)
+- '2' : Set Madgwick filter gain beta = 0.08 (Normal / Balanced)
+- '3' : Set Madgwick filter gain beta = 0.25 (Fast / High Dynamic Response)
+
+## HIL Validation Benchmark Output
+
+
+============================================================
+STM32F103 HIL Validation Suite | Listening on COM6 @ 115200 baud
+============================================================
+Capturing 500 binary telemetry packets...
+[100/500] Captured Q: [ 0.003, -0.233,  0.074,  0.021]
+[200/500] Captured Q: [-0.004, -0.233,  0.070,  0.018]
+[300/500] Captured Q: [-0.003, -0.233,  0.064,  0.007]
+[400/500] Captured Q: [ 0.003, -0.233,  0.063,  0.007]
+[500/500] Captured Q: [ 0.005, -0.233,  0.067,  0.013]
+
+============================================================
+HIL VALIDATION TEST REPORT
+============================================================
+Total Valid Packets:   500
+Sync Desync Events:    0
+Checksum Failures:     0
+Data Integrity Rate:   100.00%
+Average Frame Period:  20.00 ms (Target: 20.0 ms)
+Effective Frequency:   50.00 Hz (Target: 50.0 Hz)
+Total Test Duration:   9.99 seconds
+============================================================
+[PASS] Firmware meets professional embedded stability standards.
+
+
+
+
+## Repository Structure
+
+- **Inc/** — Header files (`gpio.h`, `i2c.h`, `madgwick.h`, `systick.h`, `usart.h`)
+- **Src/** — Register-level C drivers (`gpio.c`, `i2c.c`, `madgwick.c`, `main.c`, `systick.c`, `usart.c`)
+- **Startup/** — ARM Cortex-M3 assembly startup (`startup_stm32f103c8tx.s`)
+- **visualizer.html** — Three.js 3D WebGL telemetry dashboard (Web Serial API)
+- **hil_validator.py** — Automated Python HIL packet integrity & timing validator
+- **STM32F103C8TX_FLASH.ld** — Linker script
+
+## Build & Run
+
+### 1. Clone Repository
+`git clone https://github.com/Manjunatha144/stm32f103-baremetal-drivers.git`
+
+### 2. Build & Flash Firmware
+Open project in STM32CubeIDE, build (`Ctrl + B`), and flash via ST-Link V2 (`Ctrl + F11`).
+
+### 3. Launch 3D WebGL Visualizer
+Open `visualizer.html` in Google Chrome or Microsoft Edge, click **Connect**, and select your CP2102 COM port (`115200` baud).
+
+### 4. Run Automated HIL Validation
+Disconnect the browser visualizer and run in terminal:
+`python -m pip install pyserial`
+`python hil_validator.py`
+
+## Author
+
+### Manjunatha H
+
+Embedded and IoT Firmware Developer
