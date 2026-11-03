@@ -200,31 +200,28 @@ Calibrated loop delay to systick_delay_ms(19), achieving an exact 20.00 ms avera
 - '2' : Set Madgwick filter gain beta = 0.08 (Normal / Balanced)
 - '3' : Set Madgwick filter gain beta = 0.25 (Fast / High Dynamic Response)
 
-## HIL Validation Benchmark Output
+------------------------------------------------------------
+    STM32F103 HIL Validation Suite | Listening on COM6 @ 115200 baud
+    ------------------------------------------------------------
+    Capturing 500 binary telemetry packets...
+    [100/500] Captured Q: [ 0.003, -0.233,  0.074,  0.021]
+    [200/500] Captured Q: [-0.004, -0.233,  0.070,  0.018]
+    [300/500] Captured Q: [-0.003, -0.233,  0.064,  0.007]
+    [400/500] Captured Q: [ 0.003, -0.233,  0.063,  0.007]
+    [500/500] Captured Q: [ 0.005, -0.233,  0.067,  0.013]
 
-
-============================================================
-STM32F103 HIL Validation Suite | Listening on COM6 @ 115200 baud
-============================================================
-Capturing 500 binary telemetry packets...
-[100/500] Captured Q: [ 0.003, -0.233,  0.074,  0.021]
-[200/500] Captured Q: [-0.004, -0.233,  0.070,  0.018]
-[300/500] Captured Q: [-0.003, -0.233,  0.064,  0.007]
-[400/500] Captured Q: [ 0.003, -0.233,  0.063,  0.007]
-[500/500] Captured Q: [ 0.005, -0.233,  0.067,  0.013]
-
-============================================================
-HIL VALIDATION TEST REPORT
-============================================================
-Total Valid Packets:   500
-Sync Desync Events:    0
-Checksum Failures:     0
-Data Integrity Rate:   100.00%
-Average Frame Period:  20.00 ms (Target: 20.0 ms)
-Effective Frequency:   50.00 Hz (Target: 50.0 Hz)
-Total Test Duration:   9.99 seconds
-============================================================
-[PASS] Firmware meets professional embedded stability standards.
+    ------------------------------------------------------------
+    HIL VALIDATION TEST REPORT
+    ------------------------------------------------------------
+    Total Valid Packets:   500
+    Sync Desync Events:    0
+    Checksum Failures:     0
+    Data Integrity Rate:   100.00%
+    Average Frame Period:  20.00 ms (Target: 20.0 ms)
+    Effective Frequency:   50.00 Hz (Target: 50.0 Hz)
+    Total Test Duration:   9.99 seconds
+    ------------------------------------------------------------
+    [PASS] Firmware meets professional embedded stability standards.
 
 
 
