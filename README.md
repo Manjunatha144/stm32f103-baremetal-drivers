@@ -202,10 +202,10 @@ Calibrated loop delay to systick_delay_ms(19), achieving an exact 20.00 ms avera
 
 
 
-  ## HIL Validation Benchmark Output
+## HIL Validation Benchmark Output
   
 
-------------------------------------------------------------
+
     STM32F103 HIL Validation Suite | Listening on COM6 @ 115200 baud
     ------------------------------------------------------------
     Capturing 500 binary telemetry packets...
